@@ -1,0 +1,19 @@
+java -cp "junit-4.12.jar:hamcrest-core-1.3.jar:build/" org.junit.runner.JUnitCore paxos.PaxosTest
+JUnit version 4.12
+.Test: Deaf proposer ...
+... Passed
+.Test: Forgetting ...
+... Passed
+.Test: Single proposer ...
+... Passed
+Test: Many proposers, same value ...
+... Passed
+Test: Many proposers, different values ...
+... Passed
+Test: Out-of-order instances ...
+... Passed
+
+Time: 6.883
+
+OK (3 tests)
+

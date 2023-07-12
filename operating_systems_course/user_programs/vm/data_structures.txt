@@ -1,0 +1,82 @@
+Names: Haana Janmohamed (haj433), Joel Siew (jjs4686), Vijay Vuyyuru (vkv286),
+Saran Chockan (sc59852)
+Group: vm-group-21
+
+Frame Table:
+
+struct list frame_table; /* Global frame table. */
+
+struct frame 
+{
+    uintptr_t *frame_ptr;
+    struct page *page_ptr;
+    struct list_elem table_elem;
+};
+
+We will grow the list until it reaches the maximum number of frames specified 
+USER_PAGES. We wrote a wrapper function for palloc_get_page () 
+called page_allocate () to populate our table. It populates on demand. The 
+table is accessed in page_allocate () to add information necessary for swap 
+and we will be accessing it when we need to run our page replacement policy. 
+We use the size of the frame table to determine whether we need to swap. This
+data structure is global so all processes can touch it. Thus, we must ensure 
+proper synchronization to make sure the list does not get corrupted. When a 
+process dies, we will free the process’s pages by removing its entry from the
+frame table. The frame table as a whole will be freed only when the system is
+shut down or terminates due to error, so we will free it and push everything
+to disk like filesys_done in shutdown_power_off.
+ 
+Swap Table:
+
+struct bitmap swap_table;
+
+For the swap table we will be using a bitmap just to keep track of which
+sectors of swap are free or allocated. The bitmap will be populated when 
+eviction occurs in which the page replacement policy will determine what page
+to send to the swap table. The swap table will be accessed in 
+page_allocate () in the case that we are inserting a page that we do not have
+room for in the frame table and thus must use the swap table. The expected
+size of the bitmap is the size of the swap block. We expect this to be global
+which means all processes can touch this data structure. This bitmap will be
+destroyed when the system is shut down or terminates due to error.
+
+Supplemental Page Table:
+
+struct hash supp_page_table;
+
+struct page 
+    {
+      enum location loc;
+      uintptr_t p_ptr;
+      struct frame *occupied;
+      bool is_writeable;
+      struct file *file;
+      bool is_loaded;
+      struct hash_elem table_elem;
+      block_sector_t sector_index;
+      off_t offset;
+      uint32_t read_bytes;
+      uint32_t zero_bytes;
+    };
+
+/* Location of where the page is. */
+enum location
+    {
+        FILE_SYS,          /* In file system. */
+        SWAP_TABLE,        /* In swap. */
+        FRAME_TABLE,       /* In frame table. */
+        UNALLOCATED        /* Default. */
+    };
+
+We implemented a supplemental page table with a hash table. This data 
+structure is populated as new pages are requested with page_allocate. It is 
+accessed whenever the system page faults - when there are no more frames left
+to allocate or the page is currently out on swap or the filesystem and must
+be retrieved. The size of the supplemental page table will be 2^20 pages 
+since the virtual address is 32 bits with the first 12 being for the page
+number. This means that the remaining 20 bits are for the offset and equals
+the page size. The supplemental page table will be per process (part of 
+the thread’s TCB) which means that each process has access to only their own 
+supplemental page table. When a process dies, the supplemental page table will
+be destroyed in our process_exit () function where we close all our files
+and free resources. 
